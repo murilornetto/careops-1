@@ -1,109 +1,121 @@
-import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
+from typing import Dict
 
-# Configuração de logging (de propósito um pouco "inseguro")
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("careops")
+from database import load_db, save_db
+from models import Patient
 
-app = FastAPI(
-    title="CareOps+ API (Aula 2 – Versão Vulnerável)",
-    version="0.2.0",
-    description="Versão da aplicação com vulnerabilidades intencionais para estudo OWASP."
-)
+
+app = FastAPI(title="CareOps+ API", version="0.2.0")
 
 templates = Jinja2Templates(directory="templates")
 
-# -------------------------------------------------------
-# Página inicial – usa o index.html que você enviou
-# -------------------------------------------------------
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+def root(request: Request):
     return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "title": "CareOps+ · DevSecOps Lab"
-        }
+        "index.html", {"request": request, "title": "CareOps+ Aula 2"}
     )
 
 
-# -------------------------------------------------------
-# Healthcheck básico (usado pela UI e pelo CI/CD)
-# -------------------------------------------------------
 @app.get("/health")
-async def health():
+def health():
     return {"status": "ok"}
 
 
-# -------------------------------------------------------
-# /sum – usado pela calculadora da UI
-# - Com validação fraca (para discutirmos riscos)
-# -------------------------------------------------------
 @app.get("/sum")
-async def sum_route(a: str = "0", b: str = "0"):
+def sum_route(a: str, b: str):
+    # Vulnerável: validação fraca
     try:
-        x = float(a)
-        y = float(b)
-    except ValueError:
-        # Loga parâmetros como texto (pode vazar entrada maliciosa)
-        logger.warning(f"[SUM] Parâmetros inválidos recebidos: a={a}, b={b}")
-        return JSONResponse({"detail": "parâmetros inválidos"}, status_code=400)
-
-    result = x + y
-    logger.info(f"[SUM] a={a}, b={b}, result={result}")
+        result = float(a) + float(b)
+    except Exception as e:
+        print(f"[DEBUG] erro somando: {e} com valores a={a}, b={b}")
+        return JSONResponse(
+            {"error": "invalid parameters"}, status_code=400
+        )
     return {"result": result}
 
 
-# -------------------------------------------------------
-# /echo – reflete entrada sem sanitização (XSS / Injection)
-# Não aparece na UI, mas é ótimo para análise OWASP.
-# -------------------------------------------------------
-@app.get("/echo", response_class=HTMLResponse)
-async def echo(msg: str = ""):
-    # Vulnerabilidade: reflete o input diretamente em HTML
-    html = f"""
-    <html>
-      <head><title>Echo</title></head>
-      <body>
-        <h1>Echo</h1>
-        <p>{msg}</p>
-        <p><a href="/">Voltar</a></p>
-      </body>
-    </html>
+@app.get("/echo")
+def echo(msg: str):
+    # Vulnerável: refletindo entrada no HTML
+    return HTMLResponse(f"<h3>Eco:</h3><p>{msg}</p>")
+
+
+@app.get("/patients")
+def get_patients():
+    db = load_db()
+    # Vulnerável: sem autenticação, exibe tudo
+    return db["patients"]
+
+
+@app.get("/patient/{id}")
+def get_patient(id: int):
+    db = load_db()
+    patient = db["patients"].get(str(id))
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado")
+    return patient
+
+
+@app.post("/patients")
+def create_patient(payload: Dict):
     """
-    logger.info(f"[ECHO] msg={msg}")
-    return HTMLResponse(content=html)
+    Vulnerabilidades:
+    - sem validação de tipos (A03)
+    - campos permitidos não controlados (A04, insecure design)
+    - log inseguro
+    """
+    print(f"[DEBUG] Criando paciente com payload inseguro: {payload}")
+
+    db = load_db()
+    new_id = max(map(int, db["patients"].keys())) + 1
+    payload["id"] = new_id
+
+    db["patients"][str(new_id)] = payload
+    save_db(db)
+    return {"message": "Paciente criado", "patient": payload}
 
 
-# -------------------------------------------------------
-# /patient/{id} – Broken Access Control + exposição de dados
-# (sem autenticação/autorização)
-# -------------------------------------------------------
-fake_db = {
-    "1": {"id": 1, "name": "João Silva", "diagnosis": "Hipertensão"},
-    "2": {"id": 2, "name": "Maria Oliveira", "diagnosis": "Asma"},
-}
+@app.delete("/patients/{id}")
+def delete_patient(id: int):
+    db = load_db()
 
-@app.get("/patient/{patient_id}")
-async def get_patient(patient_id: str):
-    logger.info(f"[INSECURE LOG] Consulta ao paciente {patient_id}")
-    if patient_id in fake_db:
-        return fake_db[patient_id]
-    return JSONResponse({"error": "not found"}, status_code=404)
+    # Vulnerável: qualquer um pode apagar
+    deleted = db["patients"].pop(str(id), None)
+    save_db(db)
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado")
+
+    return {"message": "Paciente removido", "patient": deleted}
 
 
-# -------------------------------------------------------
-# /debug/config – exposição de segredos (A02, A09)
-# -------------------------------------------------------
+@app.put("/patients/{id}")
+def update_patient(id: int, payload: Dict):
+    db = load_db()
+
+    # Vulnerável: sobrescreve tudo sem checar estrutura
+    if str(id) not in db["patients"]:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado")
+
+    print(f"[DEBUG] Atualizando paciente: {payload}")
+
+    payload["id"] = id
+    db["patients"][str(id)] = payload
+    save_db(db)
+
+    return {"message": "Paciente atualizado", "patient": payload}
+
+
 @app.get("/debug/config")
-async def debug_config():
-    # Esses valores são intencionalmente inseguros para estudo
-    config = {
-        "SECRET_KEY": "123456",
-        "DB_PASSWORD": "senha_super_secreta",
-        "DEBUG_MODE": True
+def debug_config():
+    # EXPOSTO DE PROPÓSITO (para aula OWASP)
+    return {
+        "debug": True,
+        "secret_key": "123456",
+        "database_path": "patients.json",
+        "environment": "development"
     }
-    logger.warning(f"[CRITICAL] Configuração sensível exposta: {config}")
-    return config
