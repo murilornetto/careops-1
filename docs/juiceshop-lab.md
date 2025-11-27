@@ -2,8 +2,8 @@
 
 Disciplina: Segurança de Aplicações (DevSecOps)  
 Professor: Walter Lopes  
-Aluno: (preencha seu nome aqui)  
-Data: (dd/mm/aaaa)
+Aluno: Murilo Russo Netto 
+Data: (27/11/2025)
 
 ---
 
@@ -23,12 +23,13 @@ Data: (dd/mm/aaaa)
 ## 2. Ambiente Utilizado
 
 - Instância do OWASP Juice Shop:
-  - URL: (anotar aqui a instância indicada pelo professor)
+  - URL: (https://fantastic-rotary-phone-5gr9994qx5pc754r-3000.app.github.dev/#/)
 - Navegador utilizado:
-  - (ex.: Chrome, Firefox, Edge…)
+  - Opera Gx
 - Ferramentas auxiliares (se usar):
-  - (ex.: DevTools, extensões, proxies, etc.)
-
+  -  DevTools 
+Confirmação do container rodando:
+  -![alt text](image.png)
 ---
 
 ## 3. Vulnerabilidades Encontradas
@@ -38,24 +39,40 @@ Preencha uma subseção para cada vulnerabilidade.
 ### 3.1 Vulnerabilidade #1
 
 - Endpoint / funcionalidade:
-- Como foi descoberta:
-- Categoria OWASP:
-- Payload / passo a passo (resumo, sem expor segredos reais):
-- Impacto (para o negócio / usuários):
-- Possíveis mitigações:
+(https://fantastic-rotary-phone-5gr9994qx5pc754r-3000.app.github.dev/#/contact) / Customer Feedback
+- Como foi descoberta: Através do devtools
+- Categoria OWASP: A01 BROKEN ACCESS CONTROL
+- passo a passo: Após entrar na pagina de feedback, acessar o devtools, procurar pelo campo userIf no codigo da pagina, retirar a propriedade hiden que ele possue e digitar o valor 1 no novo campo que aparece no formulario. Então enviar o feedback.
+- Impacto (para o negócio / usuários): Perda de vendas e de reputação / perda de confiança dos usuarios.
+- Possíveis mitigações: excluir campos que não devem ser utilizados e não apenas esconde-los.
 
 ### 3.2 Vulnerabilidade #2
 
-- Endpoint / funcionalidade:
-- Como foi descoberta:
-- Categoria OWASP:
-- Payload / passo a passo:
-- Impacto:
-- Possíveis mitigações:
+- Endpoint / funcionalidade: https://fantastic-rotary-phone-5gr9994qx5pc754r-3000.app.github.dev/#/search / Busca
+- Como foi descoberta: utilizando codigo javascript na barra de tarefas
+- Categoria OWASP: A03 Injection Cross-Site Scripting (XSS)
+- Payload / passo a passo:após escrever o seguinte codigo javascript <iframe src="javascript:alert('xss')"> dentro da barra de tarefas o memso executou abrindo uma janela de alerta no navegador.
+- Impacto: possibilidade de execução de código malicioso na página, roubo de sessão, captura de teclado,ações em nome do usuário.
+- Possíveis mitigações: sanitizar a entrada dos campos de formulario para não permitir a execução de código.
 
 ### 3.3 Vulnerabilidade #3
 
-(Repita a estrutura acima para quantas vulnerabilidades forem obrigatórias no enunciado do lab.)
+- Endpoint / funcionalidade: https://fantastic-rotary-phone-5gr9994qx5pc754r-3000.app.github.dev/#/rest/user 
+- Como foi descoberta: DevTools
+- Categoria OWASP: A02 Sensitive Data Exposure
+- Payload / passo a passo: adicionar o caminho /rest/user na url do site e depois abrir DevTools → Network → Preview para capturar dados sensiveis. 
+- Impacto: viola LGPD/HIPAA/GPDR,exposição de dados
+- Possíveis mitigações:Controle de Acesso por Função (RBAC) e filtragem dos dados que são enviados para o frontend através de dtos de resposta por exemplo.
+
+### 3.4 Vulnerabilidade #4
+
+- Endpoint / funcionalidade:https://fantastic-rotary-phone-5gr9994qx5pc754r-3000.app.github.dev/ftp 
+- Como foi descoberta: adicionando /ftp na url da pagina
+- Categoria OWASP: A05 Security Misconfiguration
+- Payload / passo a passo: adicionar /ftp na url da pagina e navegar atraves da estrutura de pastas do servidor,
+- Impacto:acesso a dados confidenciais, superficie de ataque aumentada. 
+- Possíveis mitigações: Desabilitar a Listagem de Diretórios,Restringir o Acesso a Arquivos Sensíveis,manter arquivos sensiveis fora do diretorio raiz do servidor web.
+
 
 ---
 
